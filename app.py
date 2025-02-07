@@ -49,7 +49,7 @@ def populate_graph():
             {"userId": "u5", "name": "Eve"}
         ]
         for user in users:
-            session.write_transaction(create_user, user["userId"], user["name"])
+            session.execute_write(create_user, user["userId"], user["name"])
         
         # Crear películas
         movies = [
@@ -60,7 +60,7 @@ def populate_graph():
             {"movieId": 5, "title": "Forrest Gump", "year": 1994, "plot": "A man with a low IQ achieves great things"}
         ]
         for movie in movies:
-            session.write_transaction(create_movie, movie["movieId"], movie["title"], movie["year"], movie["plot"])
+            session.execute_write(create_movie, movie["movieId"], movie["title"], movie["year"], movie["plot"])
         
         # Crear relaciones de calificación
         ratings = [
@@ -76,11 +76,50 @@ def populate_graph():
             {"userId": "u5", "movieId": 5, "rating": 5, "timestamp": 1620014500}
         ]
         for rating in ratings:
-            session.write_transaction(create_rating, rating["userId"], rating["movieId"], rating["rating"], rating["timestamp"])
+            session.execute_write(create_rating, rating["userId"], rating["movieId"], rating["rating"], rating["timestamp"])
+
+# Ejecuta una consulta Cypher
+def run_cypher_query(query, parameters=None):
+    with driver.session() as session:
+        with session.begin_transaction() as tx:
+            result = tx.run(query, parameters)
+            try:
+                return [record for record in result]
+            except Exception as e:
+                print("Error during query execution:", e)
+                return None
+
+# Encuentra un usuario por su ID
+def find_user(user_id):
+    query = "MATCH (u:USER {userId: $userId}) RETURN u"
+    return run_cypher_query(query, {'userId': user_id})
+
+# Encuentra una película por su ID
+def find_movie(movie_id):
+    query = "MATCH (m:MOVIE {movieId: $movieId}) RETURN m"
+    return run_cypher_query(query, {'movieId': movie_id})
+
+# Encuentra la relación de calificación entre un usuario y una película
+def find_user_rate_movie(user_id, movie_id):
+    query = """
+    MATCH (u:USER {userId: $userId})-[r:RATED]->(m:MOVIE {movieId: $movieId})
+    RETURN u, r, m
+    """
+    return run_cypher_query(query, {'userId': user_id, 'movieId': movie_id})
 
 
 verify_connection()
 
 populate_graph()
 
+user_result = find_user('u1')
+print("\nUsuario encontrado:", user_result)
+
+movie_result = find_movie(1)
+print("\nPelícula encontrada:", movie_result)
+
+rating_result = find_user_rate_movie('u1', 1)
+print("\nRelación de calificación entre usuario y película:", rating_result, "\n")
+
 close_connection()
+
